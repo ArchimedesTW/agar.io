@@ -1,7 +1,8 @@
 import socket
+from socket import socket as sc
 import time
 
-main_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+main_socket = sc(socket.AF_INET, socket.SOCK_STREAM)
 main_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 main_socket.bind(("localhost", 1000))
 main_socket.setblocking(False)
@@ -10,6 +11,7 @@ print("Сокет создался")
 
 players = []
 while True:
+    # подключаемся
     try:
         new_socket, addr = main_socket.accept()
         print('Подключился', addr)
@@ -24,5 +26,14 @@ while True:
             print("Получил", data)
         except:
             pass
+
+    # Отправка игрокам поля
+    for sock in players:
+        try:
+            sock.send("LOL".encode())
+        except:
+            players.remove(sock)
+            sock.close()
+            print("Сокет закрыт")
 
     time.sleep(1)

@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.orm import sessionmaker
+import pygame
 
 engine = create_engine("postgresql+psycopg2://postgres:Nikusha1001@localhost/rebotica")
 Session = sessionmaker(bind=engine)
@@ -18,6 +19,24 @@ main_socket.setblocking(False)
 main_socket.listen(5)
 print("Сокет создался")
 
+pygame.init()
+WIDHT_ROOM, HEIGHT_ROOM = 4000, 4000
+WIDHT_SERVER, HEIGHT_SERVER = 300, 300
+FPS = 100
+screen = pygame.display.set_mode((WIDHT_SERVER, HEIGHT_SERVER))
+pygame.display.set_caption("Сервер")
+clock = pygame.time.Clock()
+
+def find(vector: str):
+    first = None
+    for num, sign in enumerate(vector):
+        if sign == "<":
+            first = num
+    if sign == ">" and first is not None:
+        second = num
+        result = list(map(float, vector[first + 1:second].split(",")))
+        return result
+    return ""
 
 class Player(Base):
     __tablename__ = "gamers"
@@ -28,9 +47,9 @@ class Player(Base):
     y = Column(Integer, default=500)
     size = Column(Integer, default=50)
     errors = Column(Integer, default=0)
-    abs_speed = Column(Integer, default=1)
-    speed_x = Column(Integer, default=0)
-    speed_y = Column(Integer, default=0)
+    abs_speed = Column(Integer, default=2)
+    speed_x = Column(Integer, default=2)
+    speed_y = Column(Integer, default=2)
 
     def __init__(self, name, address):
         self.name = name
@@ -51,13 +70,27 @@ class LocalPlayer:
         self.y = 500
         self.size = 50
         self.errors = 0
-        self.abs_speed = 1
-        self.speed_x = 0
-        self.speed_y = 0
+        self.abs_speed = 2
+        self.speed_x = 2
+        self.speed_y = 2
 
+    def update(self):
+        self.x += self.speed_x
+        self.y += self.speed_y
+
+    def change_speed(self, vector):
+        vector = find(vector)
+        if vector[0] == 0 and vector[1] == 0:
+            self.speed_x = self.speed_y = 0
+        else:
+            vector = vector[0] * self.abs_speed, vector[1] * self.abs_speed
+            self.speed_x = vector[0]
+            self.speed_y = vector[1]
 
 players = {}
-while True:
+server_works = True
+while server_works:
+    clock.tick(FPS)
     # подключаемся
     try:
         new_socket, addr = main_socket.accept()
@@ -80,6 +113,7 @@ while True:
         try:
             data = players[id].sock.recv(1024).decode()
             print("Получил", data)
+            players[id].change_speed(data)
         except:
             pass
 
@@ -94,4 +128,23 @@ while True:
             s.commit()
             print("Сокет закрыт")
 
-    time.sleep(1)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            server_works = False
+
+    screen.fill('black')
+    # отрисовка игроков
+    for id in players:
+        player = players[id]
+        x = player.x * WIDHT_SERVER // WIDHT_ROOM
+        y = player.y * HEIGHT_SERVER // HEIGHT_ROOM
+        size = player.size * WIDHT_SERVER // WIDHT_ROOM
+        pygame.draw.circle(screen, "yellow2", (x, y), size)
+        player.update()
+        pygame.display.update()
+
+
+pygame.quit()
+main_socket.close()
+s.query(Player).delete()
+s.commit()
